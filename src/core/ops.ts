@@ -1,11 +1,14 @@
 import type { Document, Element, Node } from '@xmldom/xmldom';
 import type { Header } from './header.js';
 import type { Registry } from './registry.js';
-import type { Op, RunInput, StylePatch } from './types.js';
+import { composeDisplay } from './model.js';
+import { insertPicture } from './picture.js';
+import type { HwpxPackage } from './package.js';
+import type { Op, RunInput } from './types.js';
 
 const HP = 'http://www.hancom.co.kr/hwpml/2011/paragraph';
-type Context = { sections: Document[]; header: Header; registry: Registry };
-type Piece = { text: string; base: number; style?: StylePatch };
+type Context = { sections: Document[]; header: Header; registry: Registry; pkg: HwpxPackage };
+type Piece = RunInput & { base: number; composeElement?: Element };
 const name = (node: Node) => node.localName || node.nodeName.split(':').pop();
 const paragraphIds = new WeakMap<Document, { used: Set<number>; next: number }>();
 function nextParagraphId(doc: Document): string {
@@ -60,21 +63,34 @@ function num(el: Element | undefined, attr: string, fallback = 0): number {
   const v = el?.getAttribute(attr); return v == null || v === '' ? fallback : Number(v);
 }
 function clearLayout(p: Element): void { for (const el of children(p, 'linesegarray')) p.removeChild(el); }
-function runText(run: Element): string {
-  let result = '';
-  const visit = (n: Node): void => {
-    if (n.nodeType === 3 || n.nodeType === 4) result += n.nodeValue || '';
-    else if (n.nodeType === 1) {
-      if (name(n) === 'tab') result += '\t';
-      else if (name(n) === 'lineBreak') result += '\n';
-      else for (let c = n.firstChild; c; c = c.nextSibling) visit(c);
-    }
-  };
-  for (const t of children(run, 't')) visit(t);
-  return result;
-}
 function pieces(p: Element): Piece[] {
-  return children(p, 'run').filter(r => children(r, 't').length > 0).map(r => ({ text: runText(r), base: num(r, 'charPrIDRef') }));
+  const result: Piece[] = [];
+  for (const run of children(p, 'run')) {
+    const base = num(run, 'charPrIDRef');
+    let text = '';
+    const flush = () => { if (text) result.push({ text, base }); text = ''; };
+    const visit = (node: Node, inText: boolean): void => {
+      if (node.nodeType === 3 || node.nodeType === 4) { if (inText) text += node.nodeValue ?? ''; return; }
+      if (node.nodeType !== 1) return;
+      const el = node as Element, local = name(el);
+      if (el.namespaceURI === HP) {
+        if (local === 'compose') {
+          flush();
+          const compose = { composeText: el.getAttribute('composeText') ?? '', circleType: el.getAttribute('circleType') ?? '' };
+          result.push({ text: composeDisplay(compose.composeText, compose.circleType), base, compose, composeElement: el });
+          return;
+        }
+        if (local === 'tab') { text += '\t'; return; }
+        if (local === 'lineBreak') { text += '\n'; return; }
+        if (local === 't') inText = true;
+        else if (!inText) return;
+      } else if (!inText) return;
+      for (let child = node.firstChild; child; child = child.nextSibling) visit(child, inText);
+    };
+    for (let child = run.firstChild; child; child = child.nextSibling) visit(child, false);
+    flush();
+  }
+  return result;
 }
 function writeText(doc: Document, t: Element, text: string): void {
   for (const part of text.split(/([\t\n])/)) {
@@ -83,7 +99,7 @@ function writeText(doc: Document, t: Element, text: string): void {
     else if (part) t.appendChild(doc.createTextNode(part));
   }
 }
-function setRuns(p: Element, inputs: RunInput[], ctx: Context): void {
+function setRuns(p: Element, inputs: (RunInput & { composeElement?: Element })[], ctx: Context): void {
   const doc = p.ownerDocument!;
   const old = children(p, 'run');
   const base = num(old[0], 'charPrIDRef');
@@ -92,12 +108,13 @@ function setRuns(p: Element, inputs: RunInput[], ctx: Context): void {
   let foundText = false;
   for (const run of old) {
     const texts = children(run, 't');
-    if (texts.length && !foundText) { insertion = run; foundText = true; }
+    if ((texts.length || children(run, 'compose').length) && !foundText) { insertion = run; foundText = true; }
     if (children(run, 'secPr').length || children(run, 'ctrl').length) insertion = run.nextSibling;
+    for (const compose of children(run, 'compose')) run.removeChild(compose);
     for (const t of texts) {
       for (let child = t.firstChild; child;) {
         const next = child.nextSibling;
-        if (child.nodeType === 3 || child.nodeType === 4 || name(child) === 'tab' || name(child) === 'lineBreak') t.removeChild(child);
+        if (child.nodeType === 3 || child.nodeType === 4 || name(child) === 'tab' || name(child) === 'lineBreak' || name(child) === 'compose') t.removeChild(child);
         child = next;
       }
       if (!t.firstChild) run.removeChild(t);
@@ -106,7 +123,17 @@ function setRuns(p: Element, inputs: RunInput[], ctx: Context): void {
   for (const input of inputs.length ? inputs : [{ text: '' }]) {
     const b = input.base ?? base;
     const run = elem(doc, 'run', { charPrIDRef: input.style ? ctx.header.ensureCharPr(b, input.style) : b });
-    const t = elem(doc, 't'); writeText(doc, t, input.text); run.appendChild(t);
+    if (input.compose) {
+      if (input.text !== composeDisplay(input.compose.composeText, input.compose.circleType)) throw new Error('Compose text must match its display string');
+      let compose = input.composeElement?.cloneNode(true);
+      if (!compose) {
+        compose = elem(doc, 'compose', { circleType: input.compose.circleType, charSz: '-3', composeType: 'SPREAD', charPrCnt: '10', composeText: input.compose.composeText });
+        for (let i = 0; i < 10; i++) compose.appendChild(elem(doc, 'charPr', { prIDRef: i < input.compose.composeText.length ? run.getAttribute('charPrIDRef')! : '4294967295' }));
+      }
+      run.appendChild(compose);
+    } else {
+      const t = elem(doc, 't'); writeText(doc, t, input.text); run.appendChild(t);
+    }
     p.insertBefore(run, insertion);
   }
   for (const run of old) if (!run.firstChild) p.removeChild(run);
@@ -204,7 +231,14 @@ function makeTable(p: Element, rows: number, cols: number, data: string[][] | un
 }
 function slicePieces(items: Piece[], start: number, end: number): Piece[] {
   const out: Piece[] = []; let pos = 0;
-  for (const item of items) { const a = Math.max(0, start - pos), b = Math.min(item.text.length, end - pos); if (a < b) out.push({ ...item, text: item.text.slice(a, b) }); pos += item.text.length; }
+  for (const item of items) {
+    const a = Math.max(0, start - pos), b = Math.min(item.text.length, end - pos);
+    if (a < b) {
+      if (item.compose && (a !== 0 || b !== item.text.length)) out.push({ text: item.text.slice(a, b), base: item.base, style: item.style });
+      else out.push({ ...item, text: item.text.slice(a, b) });
+    }
+    pos += item.text.length;
+  }
   return out;
 }
 function replaceInParagraph(p: Element, regex: RegExp, replacement: string, ctx: Context): number {
@@ -282,6 +316,16 @@ export function applyOp(op: Op, ctx: Context): { created?: string; replaced?: nu
     case 'insertTable': {
       const previous = required(ctx, op.after, 'p'); const p = newParagraph(previous); previous.parentNode!.insertBefore(p, previous.nextSibling); ctx.registry.id(p, 'p');
       const table = makeTable(p, op.rows, op.cols, op.data, ctx); children(p, 'run')[0].appendChild(table); return { created: ctx.registry.id(table, 't') };
+    }
+    case 'insertPicture': {
+      const target = required(ctx, op.paragraph, 'p');
+      let p = target;
+      if (pieces(target).some(piece => piece.text.length > 0)) {
+        p = newParagraph(target);
+        target.parentNode!.insertBefore(p, target.nextSibling);
+        ctx.registry.id(p, 'p');
+      }
+      return { created: insertPicture(op, p, ctx.pkg, ctx.registry) };
     }
     case 'insertRow': rowChange(required(ctx, op.tableId, 'tbl'), op.at, true, ctx); return {};
     case 'deleteRow': rowChange(required(ctx, op.tableId, 'tbl'), op.row, false, ctx); return {};

@@ -17,10 +17,21 @@ export interface CharStyle {
   highlight: string | null; // shadeColor "#rrggbb" or null when "none"
 }
 
-/** Text of one hp:run. Tabs are "\t", hp:lineBreak is "\n". */
+/** 글자 겹치기 (hp:compose), e.g. a checked box = circleType "SHAPE_RECTANGLE" + composeText "✓". */
+export interface ComposeChar {
+  composeText: string; // hp:compose composeText
+  circleType: string; // hp:compose circleType, e.g. "SHAPE_RECTANGLE", "SHAPE_CIRCLE", "CHAR"
+}
+
+/**
+ * Text of one hp:run. Tabs are "\t", hp:lineBreak is "\n".
+ * A compose run is its own TextRun (never merged): `text` is one display string counted in offsets —
+ * "☑" when circleType contains "RECTANGLE" and composeText is a check mark (✓ ✔ √ v V), otherwise composeText.
+ */
 export interface TextRun {
   text: string;
   style: CharStyle;
+  compose?: ComposeChar;
 }
 
 export interface Paragraph {
@@ -35,6 +46,13 @@ export interface Paragraph {
   anchors: Anchored[]; // tables/pictures/shapes anchored in this paragraph, in document order
 }
 
+/** One cell edge from hh:borderFill. */
+export interface BorderLine {
+  type: string; // hh:*Border type: "SOLID", "DASH", "DOT", "DOUBLE_SLIM", ... ("NONE" is reported as null)
+  widthMm: number; // parsed from e.g. "0.12 mm"
+  color: string; // "#rrggbb"
+}
+
 export interface TableCell {
   id: Id;
   row: number; // hp:cellAddr rowAddr
@@ -43,6 +61,11 @@ export interface TableCell {
   colSpan: number;
   widthMm: number;
   heightMm: number;
+  /** Resolved from hp:tc borderFillIDRef. null edge = no line. */
+  border: { top: BorderLine | null; right: BorderLine | null; bottom: BorderLine | null; left: BorderLine | null };
+  background: string | null; // hc:fillBrush/hc:winBrush faceColor "#rrggbb"; null when none/transparent
+  vAlign: 'top' | 'center' | 'bottom'; // hp:subList vertAlign
+  paddingMm: { left: number; right: number; top: number; bottom: number }; // hp:cellMargin (table inMargin when hasMargin="0")
   paragraphs: Paragraph[]; // hp:subList paragraphs (may themselves anchor nested tables)
 }
 
@@ -111,6 +134,8 @@ export interface RunInput {
   text: string;
   base?: number;
   style?: StylePatch;
+  /** Write a 글자 겹치기 instead of plain text; `text` must be the display string from TextRun. */
+  compose?: ComposeChar;
 }
 
 export type Op =
@@ -124,11 +149,20 @@ export type Op =
   | { op: 'insertTable'; after: Id; rows: number; cols: number; data?: string[][] } // new paragraph after `after` anchoring the table, full text width
   | { op: 'insertRow'; tableId: Id; at: number } // copies row at-1 (or 0) formatting; rejects when merges cross
   | { op: 'deleteRow'; tableId: Id; row: number } // rejects when merges cross
-  | { op: 'deleteObject'; id: Id }; // removes a table/object anchor
+  | { op: 'deleteObject'; id: Id } // removes a table/object anchor
+  /**
+   * Inline picture (treatAsChar). Empty paragraph `paragraph` → picture goes into it; paragraph with text → a new
+   * paragraph (same paraPr/style/charPr) is inserted right after it holding only the picture (so the text line is not
+   * stretched by justification). `paragraph` may be inside a table cell.
+   * Exactly one of `path` (file readable by the server process) or `data` (base64). PNG, JPEG, GIF, BMP.
+   * Size: widthMm/heightMm when given (one given → keep aspect); else pixels at 96 dpi.
+   * Always shrunk (aspect kept) to fit the available width: cell width minus padding, or section text width.
+   */
+  | { op: 'insertPicture'; paragraph: Id; path?: string; data?: string; widthMm?: number; heightMm?: number };
 
 export interface OpResult {
   revision: number;
-  /** ids created by the batch, in op order (insertParagraph → paragraph id, insertTable → table id). */
+  /** ids created by the batch, in op order (insertParagraph → paragraph id, insertTable → table id, insertPicture → object id). */
   created: Id[];
   /** replaceText: number of replacements, summed. */
   replaced: number;

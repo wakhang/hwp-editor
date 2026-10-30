@@ -35,6 +35,13 @@ export function newDocument(): DocSession;                            // src/cor
 ## id 규칙
 세션 안에서만 유효. 문서를 열 때 순서대로 `s0..`(구역), `p1..`(문단, 표 셀 안 포함), `t1..`(표), `c1..`(셀), `o1..`(기타 개체)를 매긴다. op로 새로 생긴 것은 이어서 증가. undo/redo 뒤에도 남아 있는 요소의 id는 바뀌지 않는다.
 
+## 서식 채우기 지원
+- 글자 겹치기(`hp:compose`, 체크된 □ 등)는 `TextRun.compose`가 있는 별도 run. 오프셋·outline에서는 표시 문자 하나(체크 상자 → `☑`). `RunInput.compose`로 다시 쓰면 compose로 저장, 없으면 표시 문자를 일반 글자로 저장. 문단을 다시 써도 compose 위치(앞뒤 글자 순서)는 유지된다.
+- 셀 테두리·배경: `TableCell.border/background/vAlign/paddingMm`(header `hh:borderFill`, `hp:subList vertAlign`, `hp:cellMargin`에서 계산). UI는 CSS 테두리·배경으로 그린다.
+- 그림 넣기: `insertPicture` op — 글자처럼 취급(treatAsChar) 그림. 빈 문단이면 그 문단에, 글이 있는 문단이면 바로 뒤에 새 문단(같은 paraPr·style)을 만들어 그림만 넣는다(양쪽 정렬로 앞 줄 글자가 벌어지는 것 방지). 파일은 `BinData/`에 추가하고 `content.hpf` manifest에 `isEmbeded="1"`로 등록. MCP·CLI는 `path`, UI는 base64 `data`. outline은 문단 줄 끝에 `[o5 그림 80×45mm]`처럼 개체를 적는다.
+- 표에 행을 더해 쪽을 넘기면 한글은 행을 쪽 경계에서 나눈다(표 `pageBreak="CELL"`). 버그가 아니라 조판 결과 — 서식 칸이 쪽에 꽉 찬 경우 행 추가 대신 칸 안에 글을 넣는 편이 원본 쪽 수를 지킨다.
+- 검증: 이 맥에 한글이 없으므로 mbc PC(Windows, 한컴오피스 2020, HwpObject COM)에서 .hwpx를 열어 PDF·PNG로 내보내 확인한다.
+
 ## HTTP API (서버, 기본 포트 47321, 127.0.0.1만)
 모든 요청 헤더 `Authorization: Bearer <token>`(예외: `<img>`가 쓰는 `GET /api/docs/:id/bin/:binId`와 WS는 `?token=` 쿼리). 시작 시 `~/.hwp-editor/server.json`(0600)에 `{port, pid, token}` 기록, 종료 시 삭제. UI 페이지는 토큰을 `/?token=` 쿼리로 받는다.
 | 메서드 경로 | 본문 → 응답 |

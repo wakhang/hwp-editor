@@ -19,7 +19,8 @@ const opDescription = `Apply an atomic array of operations. IDs are session-scop
 {"op":"setCellText","tableId":tableId,"row":number,"col":number,"text":string} (newlines split paragraphs);
 {"op":"insertTable","after":paragraphId,"rows":number,"cols":number,"data"?:string[][]};
 {"op":"insertRow","tableId":tableId,"at":number}; {"op":"deleteRow","tableId":tableId,"row":number}; {"op":"deleteObject","id":tableOrObjectId}. Rows crossing merges cannot be inserted/deleted.
-RunInput = {"text":string,"base"?:number,"style"?:StylePatch}; base is a charPrId, defaulting to first run's character style. StylePatch = {"bold"?:boolean,"italic"?:boolean,"underline"?:boolean,"strike"?:boolean,"sizePt"?:number,"color"?:"#rrggbb","highlight"?:string|null,"font"?:string}; Align = "left"|"right"|"center"|"justify"|"distribute".`;
+{"op":"insertPicture","paragraph":paragraphId,"path"?:string,"data"?:base64String,"widthMm"?:number,"heightMm"?:number}; supply exactly one of path or data. PNG, JPEG, GIF and BMP are supported; images are fitted to the available width. A paragraph containing text gets a new picture-only paragraph immediately after it; an empty paragraph holds the picture itself.
+RunInput = {"text":string,"base"?:number,"style"?:StylePatch,"compose"?:{"composeText":string,"circleType":string}}; base is a charPrId, defaulting to first run's character style. Compose text must be the displayed text; checked boxes appear as ☑, and writing ☑ as plain text is also fine. StylePatch = {"bold"?:boolean,"italic"?:boolean,"underline"?:boolean,"strike"?:boolean,"sizePt"?:number,"color"?:"#rrggbb","highlight"?:string|null,"font"?:string}; Align = "left"|"right"|"center"|"justify"|"distribute".`;
 const string = { type: 'string' } as const;
 const boolean = { type: 'boolean' } as const;
 const number = { type: 'integer' } as const;

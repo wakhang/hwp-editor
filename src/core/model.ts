@@ -33,6 +33,10 @@ function mm(el: Element | undefined, attr: string): number { return number(el, a
 
 const defaultStyle: CharStyle = { charPrId: 0, font: '', sizePt: 10, bold: false, italic: false, underline: false, strike: false, color: '#000000', highlight: null };
 
+export function composeDisplay(composeText: string, circleType: string): string {
+  return circleType.includes('RECTANGLE') && /^[✓✔√vV]$/.test(composeText) ? '☑' : composeText;
+}
+
 function pageSetup(root: Element): PageSetup {
   const page = descendant(root, 'pagePr');
   const margin = page && child(page, 'margin');
@@ -78,7 +82,18 @@ export function buildSections(sectionDocs: Document[], header: Header, registry:
         const row = number(addr, 'rowAddr', rowIndex), col = number(addr, 'colAddr', colIndex);
         const cellId = registry.id(tc, 'c');
         const subList = child(tc, 'subList');
-        const cell: TableCell = { id: cellId, row, col, rowSpan: number(span, 'rowSpan', 1), colSpan: number(span, 'colSpan', 1), widthMm: mm(size, 'width'), heightMm: mm(size, 'height'), paragraphs: subList ? children(subList, 'p').map(paragraph) : [] };
+        const fill = header.borderFills.get(number(tc, 'borderFillIDRef', -1));
+        const margin = tc.getAttribute('hasMargin') === '0' ? child(el, 'inMargin') : child(tc, 'cellMargin');
+        const align = subList?.getAttribute('vertAlign')?.toUpperCase();
+        const cell: TableCell = {
+          id: cellId, row, col, rowSpan: number(span, 'rowSpan', 1), colSpan: number(span, 'colSpan', 1),
+          widthMm: mm(size, 'width'), heightMm: mm(size, 'height'),
+          border: fill?.border ?? { top: null, right: null, bottom: null, left: null },
+          background: fill?.background ?? null,
+          vAlign: align === 'CENTER' ? 'center' : align === 'BOTTOM' ? 'bottom' : 'top',
+          paddingMm: { left: mm(margin, 'left'), right: mm(margin, 'right'), top: mm(margin, 'top'), bottom: mm(margin, 'bottom') },
+          paragraphs: subList ? children(subList, 'p').map(paragraph) : [],
+        };
         while (rows.length <= row) rows.push([]);
         rows[row].push(cell);
       }
@@ -94,6 +109,13 @@ export function buildSections(sectionDocs: Document[], header: Header, registry:
       const charPrId = number(run, 'charPrIDRef');
       const style = header.styles.get(charPrId) ?? { ...defaultStyle, charPrId };
       let text = '', hasText = false;
+      function flush(): void {
+        if (!hasText) return;
+        const previous = runs[runs.length - 1];
+        if (previous && !previous.compose && previous.style.charPrId === charPrId) previous.text += text;
+        else runs.push({ text, style });
+        text = ''; hasText = false;
+      }
       function visit(node: Node, inText: boolean): void {
         if (node.nodeType === 3 || node.nodeType === 4) {
           if (inText) text += node.nodeValue ?? '';
@@ -106,6 +128,12 @@ export function buildSections(sectionDocs: Document[], header: Header, registry:
           if (name === 'tbl') { anchors.push(table(current)); return; }
           if (objectTypes[name]) { anchors.push(object(current)); return; }
           if (name === 'secPr' || name === 'linesegarray') return;
+          if (name === 'compose') {
+            flush();
+            const compose = { composeText: current.getAttribute('composeText') ?? '', circleType: current.getAttribute('circleType') ?? '' };
+            runs.push({ text: composeDisplay(compose.composeText, compose.circleType), style, compose });
+            return;
+          }
           if (name === 'tab') { text += '\t'; hasText = true; return; }
           if (name === 'lineBreak') { text += '\n'; hasText = true; return; }
           if (name === 't') { inText = true; hasText = true; }
@@ -113,11 +141,7 @@ export function buildSections(sectionDocs: Document[], header: Header, registry:
         for (let n = current.firstChild; n; n = n.nextSibling) visit(n, inText);
       }
       for (let n = run.firstChild; n; n = n.nextSibling) visit(n, false);
-      if (hasText) {
-        const previous = runs[runs.length - 1];
-        if (previous?.style.charPrId === charPrId) previous.text += text;
-        else runs.push({ text, style });
-      }
+      flush();
     }
     return { kind: 'p', id, paraPrId, styleId, styleName: header.styleNames.get(styleId) ?? '', align: header.paraAlign.get(paraPrId) ?? 'left', pageBreakBefore: el.getAttribute('pageBreak') === '1', runs, anchors };
   }

@@ -20,7 +20,7 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 10_000_000) throw new Error('Request body too large');
+    if (size > 30_000_000) throw new Error('Request body too large');
     chunks.push(chunk);
   }
   return z.record(z.string(), z.unknown()).parse(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});

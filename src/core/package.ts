@@ -14,6 +14,7 @@ export function serializeXml(doc: Document): string {
 function elements(doc: Document, name: string): Element[] {
   return Array.from(doc.getElementsByTagName('*')).filter(el => el.localName === name);
 }
+export type PackageSnapshot = { entries: Record<string, Uint8Array>; order: string[]; binaries: [string, string][] };
 
 export class HwpxPackage {
   readonly entries: Record<string, Uint8Array>;
@@ -45,6 +46,31 @@ export class HwpxPackage {
       return parseXml(this.entries[path]).documentElement?.localName === 'sec';
     });
     if (!this.sectionPaths.length) throw new Error('HWPX package has no sections in spine');
+  }
+  snapshot(): PackageSnapshot {
+    return { entries: { ...this.entries }, order: [...this.order], binaries: [...this.binaries] };
+  }
+  restore(snapshot: PackageSnapshot): void {
+    for (const key of Object.keys(this.entries)) delete this.entries[key];
+    Object.assign(this.entries, snapshot.entries);
+    this.order.splice(0, this.order.length, ...snapshot.order);
+    this.binaries.clear();
+    for (const [id, path] of snapshot.binaries) this.binaries.set(id, path);
+  }
+  addBinary(data: Uint8Array, extension: string, mime: string): string {
+    const manifest = this.document('Contents/content.hpf');
+    const container = elements(manifest, 'manifest')[0];
+    if (!container) throw new Error('HWPX package has no manifest');
+    const ids = new Set(elements(manifest, 'item').map(item => item.getAttribute('id')));
+    let n = 1;
+    while (ids.has(`image${n}`) || this.entries[`BinData/image${n}.${extension}`]) n++;
+    const id = `image${n}`, path = `BinData/${id}.${extension}`;
+    const item = manifest.createElementNS(container.namespaceURI, `${container.prefix || 'opf'}:item`);
+    item.setAttribute('id', id); item.setAttribute('href', path); item.setAttribute('media-type', mime); item.setAttribute('isEmbeded', '1');
+    container.appendChild(item);
+    this.entries['Contents/content.hpf'] = new TextEncoder().encode(serializeXml(manifest));
+    this.entries[path] = data; this.order.push(path); this.binaries.set(id, path);
+    return id;
   }
   document(path: string): Document {
     const bytes = this.entries[path];

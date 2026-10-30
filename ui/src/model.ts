@@ -1,6 +1,6 @@
 import { Schema, type DOMOutputSpec, type MarkSpec, type Node as ProseMirrorNode, type NodeSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
-import type { CharStyle, DocModel, OpaqueObject, PageSetup, Paragraph, Table, TableCell } from '../../src/core/types.js';
+import type { BorderLine, CharStyle, DocModel, OpaqueObject, PageSetup, Paragraph, Table, TableCell } from '../../src/core/types.js';
 
 /** Resolve a BinData id to an authenticated URL suitable for an image element. */
 export type ImageUrl = (binId: string) => string;
@@ -97,23 +97,59 @@ const opaqueObject: NodeSpec = {
 };
 
 const image: NodeSpec = {
-  group: 'block', atom: true, selectable: true,
+  inline: true, group: 'inline', atom: true, selectable: true,
   attrs: { ...objectAttrs, src: { default: null } },
-  parseDOM: [{ tag: 'div[data-hwp-image]', getAttrs: dom => parseObject(dom as HTMLElement) }],
+  parseDOM: [{ tag: 'span[data-hwp-image]', getAttrs: dom => parseObject(dom as HTMLElement) }],
   toDOM(node): DOMOutputSpec {
     const a = node.attrs;
     const attrs = { ...objectDOMAttrs(a), 'data-hwp-image': '', class: 'hwp-image' };
-    if (!a.src) return ['div', attrs, a.label || '그림'];
+    if (!a.src) return ['span', attrs, a.label || '그림'];
     const style = [a.widthMm != null && `width: ${a.widthMm}mm`, a.heightMm != null && `height: ${a.heightMm}mm`].filter(Boolean).join('; ');
-    return ['div', attrs, ['img', { src: a.src, alt: a.label || '그림', style }]];
+    return ['span', attrs, ['img', { src: a.src, alt: a.label || '그림', style }]];
   },
 };
+
+const compose: NodeSpec = {
+  inline: true, group: 'inline', atom: true, selectable: true,
+  attrs: { text: {}, compose: {} },
+  parseDOM: [{ tag: 'span[data-compose]', getAttrs: dom => {
+    try { return JSON.parse((dom as HTMLElement).getAttribute('data-compose') || '{}'); } catch { return false; }
+  } }],
+  toDOM(node): DOMOutputSpec {
+    const { text, compose: value } = node.attrs;
+    const shape = text === '☑' ? '' : /RECTANGLE/.test(value.circleType) ? ' rectangle' : /CIRCLE/.test(value.circleType) ? ' circle' : '';
+    return ['span', { 'data-compose': JSON.stringify({ text, compose: value }), contenteditable: 'false', class: `hwp-compose${shape}` }, text];
+  },
+};
+
+function borderStyle(border: BorderLine | null): string {
+  if (!border || border.type === 'NONE') return 'none';
+  const type = border.type.toUpperCase();
+  const double = /DOUBLE|THICK_THIN|THIN_THICK/.test(type);
+  const style = double ? 'double' : /DASH/.test(type) ? 'dashed' : /DOT/.test(type) ? 'dotted' : 'solid';
+  const width = double ? `max(${Math.max(border.widthMm, 0.1)}mm, 3px)` : `${Math.max(border.widthMm, 0.1)}mm`;
+  return `${width} ${style} ${border.color}`;
+}
+
+function cellStyle(cell: Pick<TableCell, 'border' | 'background' | 'vAlign' | 'paddingMm' | 'heightMm'>): string {
+  const lines = cell.border;
+  const padding = cell.paddingMm;
+  return [
+    ...(['top', 'right', 'bottom', 'left'] as const).map(edge => `border-${edge}: ${borderStyle(lines?.[edge] ?? null)}`),
+    cell.background && `background-color: ${cell.background}`,
+    `vertical-align: ${cell.vAlign === 'center' ? 'middle' : cell.vAlign || 'top'}`,
+    padding && `padding: ${padding.top}mm ${padding.right}mm ${padding.bottom}mm ${padding.left}mm`,
+    cell.heightMm != null && `min-height: ${cell.heightMm}mm`,
+  ].filter(Boolean).join('; ');
+}
 
 const cells = tableNodes({
   tableGroup: 'block', cellContent: 'block+',
   cellAttributes: {
     id: { default: null }, row: { default: null }, col: { default: null },
-    widthMm: { default: null, setDOMAttr(value, attrs) { if (value != null) attrs.style = `${attrs.style ?? ''}width: ${value}mm;`; } }, heightMm: { default: null },
+    widthMm: { default: null, setDOMAttr(value, attrs) { if (value != null) attrs.style = `${attrs.style ?? ''}width: ${value}mm;`; } },
+    heightMm: { default: null }, border: { default: null }, background: { default: null }, vAlign: { default: 'top' }, paddingMm: { default: null },
+    cellStyle: { default: '', setDOMAttr(value, attrs) { attrs.style = `${attrs.style ?? ''}${value}`; } },
   },
 });
 
@@ -126,7 +162,7 @@ cells.table = { ...cells.table, attrs: { id: { default: null }, anchorId: { defa
 };
 
 export const schema = new Schema({
-  nodes: { doc: { content: 'section+' }, section, paragraph, text: { group: 'inline' }, ...cells, opaque_object: opaqueObject, image },
+  nodes: { doc: { content: 'section+' }, section, paragraph, text: { group: 'inline' }, ...cells, opaque_object: opaqueObject, image, compose },
   marks: { cs },
 });
 
@@ -134,16 +170,21 @@ export const schema = new Schema({
 export function paragraphToNodes(paragraphModel: Paragraph, imageUrl?: ImageUrl): ProseMirrorNode[] {
   const { id, align, paraPrId, styleId, styleName, pageBreakBefore } = paragraphModel;
   const content = paragraphModel.runs.filter(run => run.text.length > 0).map(run =>
-    schema.text(run.text, [schema.marks.cs.create(run.style)]));
+    run.compose ? schema.nodes.compose.create({ text: run.text, compose: run.compose }, null, [schema.marks.cs.create(run.style)])
+      : schema.text(run.text, [schema.marks.cs.create(run.style)]));
+  for (const anchor of paragraphModel.anchors) {
+    if (anchor.kind === 'object' && anchor.objectType === 'picture') content.push(objectToNode(anchor, id, imageUrl));
+  }
   const p = schema.nodes.paragraph.create({ id, align, paraPrId, styleId, styleName, pageBreakBefore }, content);
-  return [p, ...paragraphModel.anchors.map(anchor => anchor.kind === 'table'
+  return [p, ...paragraphModel.anchors.filter(anchor => anchor.kind !== 'object' || anchor.objectType !== 'picture').map(anchor => anchor.kind === 'table'
     ? tableToNode(anchor, id, imageUrl) : objectToNode(anchor, id, imageUrl))];
 }
 
 function cellToNode(cell: TableCell, imageUrl?: ImageUrl): ProseMirrorNode {
   const content = cell.paragraphs.flatMap(p => paragraphToNodes(p, imageUrl));
   return schema.nodes.table_cell.create({ id: cell.id, row: cell.row, col: cell.col,
-    colspan: cell.colSpan, rowspan: cell.rowSpan, widthMm: cell.widthMm, heightMm: cell.heightMm },
+    colspan: cell.colSpan, rowspan: cell.rowSpan, widthMm: cell.widthMm, heightMm: cell.heightMm,
+    border: cell.border, background: cell.background, vAlign: cell.vAlign, paddingMm: cell.paddingMm, cellStyle: cellStyle(cell) },
     content.length ? content : [schema.nodes.paragraph.create()]);
 }
 

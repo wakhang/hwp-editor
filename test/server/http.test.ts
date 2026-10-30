@@ -39,6 +39,12 @@ describe('HTTP server', () => {
       const paragraph = model.sections[0].paragraphs[0];
       expect(paragraph).toBeDefined();
 
+      // Image operations can carry roughly 20 MB of base64 in their JSON body.
+      const largeBody = await request(`/api/docs/${encodeURIComponent(model.docId)}/ops`, {
+        ops: [], source: 'ai', padding: 'A'.repeat(20_000_000),
+      });
+      expect(largeBody.status).toBe(200);
+
       socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws?token=${encodeURIComponent(server.token)}`);
       await once(socket, 'open');
       const changed = once(socket, 'message').then(([data]) => JSON.parse(data.toString()));

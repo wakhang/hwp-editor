@@ -20,39 +20,42 @@ function stylePatch(style: CharStyle, base?: CharStyle): StylePatch {
 function runsOf(node: PMNode, styles: Map<number, CharStyle>, fallback?: CharStyle): RunInput[] {
   const runs: RunInput[] = [];
   node.forEach(child => {
-    const text = child.isText ? child.text ?? '' : child.type.name === 'hard_break' ? '\n' : '';
+    const text = child.isText ? child.text ?? '' : child.type.name === 'compose' ? child.attrs.text as string : child.type.name === 'hard_break' ? '\n' : '';
     if (!text) return;
     const style = (child.marks.find(mark => mark.type.name === 'cs')?.attrs as CharStyle | undefined) ?? fallback;
     const patch = style && stylePatch(style, styles.get(style.charPrId));
-    const run: RunInput = style ? { text, base: style.charPrId, ...(patch && Object.keys(patch).length ? { style: patch } : {}) } : { text };
+    const run: RunInput = { text, ...(style ? { base: style.charPrId, ...(patch && Object.keys(patch).length ? { style: patch } : {}) } : {}),
+      ...(child.type.name === 'compose' ? { compose: child.attrs.compose } : {}) };
     const previous = runs[runs.length - 1];
-    if (previous && previous.base === run.base && JSON.stringify(previous.style) === JSON.stringify(run.style)) previous.text += text;
+    if (previous && !previous.compose && !run.compose && previous.base === run.base && JSON.stringify(previous.style) === JSON.stringify(run.style)) previous.text += text;
     else runs.push(run);
   });
   return runs;
 }
 
 function comparableRuns(node: PMNode, fallback?: CharStyle) {
-  const runs: { text: string; style?: StylePatch }[] = [];
+  const runs: { text: string; style?: StylePatch; compose?: RunInput['compose'] }[] = [];
   node.forEach(child => {
-    if (!child.isText || !child.text) return;
+    const text = child.isText ? child.text : child.type.name === 'compose' ? child.attrs.text as string : undefined;
+    if (!text) return;
     const style = (child.marks.find(mark => mark.type.name === 'cs')?.attrs as CharStyle | undefined) ?? fallback;
     const patch = style && stylePatch(style);
+    const compose = child.type.name === 'compose' ? child.attrs.compose as RunInput['compose'] : undefined;
     const previous = runs[runs.length - 1];
-    if (previous && JSON.stringify(previous.style) === JSON.stringify(patch)) previous.text += child.text;
-    else runs.push({ text: child.text, ...(patch ? { style: patch } : {}) });
+    if (previous && !previous.compose && !compose && JSON.stringify(previous.style) === JSON.stringify(patch)) previous.text += text;
+    else runs.push({ text, ...(patch ? { style: patch } : {}), ...(compose ? { compose } : {}) });
   });
   return runs;
 }
 
 function comparableOriginal(paragraph: Paragraph) {
-  const runs: { text: string; style: StylePatch }[] = [];
+  const runs: { text: string; style: StylePatch; compose?: RunInput['compose'] }[] = [];
   for (const run of paragraph.runs) {
     if (!run.text) continue;
     const style = stylePatch(run.style);
     const previous = runs[runs.length - 1];
-    if (previous && JSON.stringify(previous.style) === JSON.stringify(style)) previous.text += run.text;
-    else runs.push({ text: run.text, style });
+    if (previous && !previous.compose && !run.compose && JSON.stringify(previous.style) === JSON.stringify(style)) previous.text += run.text;
+    else runs.push({ text: run.text, style, ...(run.compose ? { compose: run.compose } : {}) });
   }
   return runs;
 }

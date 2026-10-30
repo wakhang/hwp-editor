@@ -37,6 +37,11 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 function error(e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
+function toast(message: string) {
+  const el = app.querySelector<HTMLElement>('.toast')!;
+  el.textContent = message; el.classList.add('visible'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 2500);
+}
 function endpoint(suffix = '') { return `/api/docs/${encodeURIComponent(model!.docId)}${suffix}`; }
 function imageUrl(binId: string) { return `${endpoint(`/bin/${encodeURIComponent(binId)}`)}?token=${encodeURIComponent(token)}`; }
 interface CursorPosition { id: string; offset: number }
@@ -130,7 +135,7 @@ async function reload(showToast = false) {
   // Changes made during the fetch must be sent before replacing the view.
   if (view && diff(model, view.state.doc).ops.length) { await flush(); return reload(showToast); }
   install(next, true);
-  if (showToast) { const el = app.querySelector<HTMLElement>('.toast')!; el.textContent = 'AI가 문서를 고쳤습니다'; el.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('visible'), 2500); }
+  if (showToast) toast('AI가 문서를 고쳤습니다');
 }
 async function perform(ops: Op[]) { if (!model) return; await flush(); await api(endpoint('/ops'), { ops, source: 'ui', clientId }); await reload(); }
 async function openPath(path: string) { await flush(); install(await api<DocModel>('/api/open', { path })); }
@@ -169,6 +174,30 @@ function currentTable() { if (!view) return null; const $pos = view.state.select
 async function tableInsert() { const id = currentParagraph(); if (!id) return; const input = prompt('표 크기 (행×열)', '2×2'); if (!input) return; const match = input.match(/^\s*(\d+)\s*[x×,]\s*(\d+)\s*$/i); if (!match || +match[1] < 1 || +match[2] < 1) { alert('행과 열을 올바르게 입력하세요.'); return; } await perform([{ op: 'insertTable', after: id, rows: +match[1], cols: +match[2] }]); }
 function button(label: string, title: string, handler: () => void) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = title; b.setAttribute('aria-label', title); b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('click', handler); toolbar.append(b); return b; }
 function divider() { const el = document.createElement('span'); el.className = 'divider'; toolbar.append(el); }
+const pictureInput = document.createElement('input');
+pictureInput.type = 'file'; pictureInput.accept = 'image/png,image/jpeg,image/gif,image/bmp'; pictureInput.hidden = true;
+toolbar.append(pictureInput);
+let pictureTarget: { paragraph: string; docId: string } | null = null;
+pictureInput.addEventListener('change', () => {
+  const file = pictureInput.files?.[0];
+  const target = pictureTarget;
+  pictureInput.value = ''; pictureTarget = null;
+  if (!file || !target) return;
+  if (file.size > 20 * 1024 * 1024) { toast('그림은 20MB 이하여야 합니다.'); return; }
+  const reader = new FileReader();
+  reader.onerror = () => error(reader.error ?? new Error('그림을 읽을 수 없습니다.'));
+  reader.onload = () => {
+    if (model?.docId !== target.docId || typeof reader.result !== 'string') return;
+    const data = reader.result.slice(reader.result.indexOf(',') + 1);
+    void perform([{ op: 'insertPicture', paragraph: target.paragraph, data }]).catch(error);
+  };
+  reader.readAsDataURL(file);
+});
+button('그림', '그림 넣기', () => {
+  const paragraph = currentParagraph();
+  if (!paragraph || !model) return;
+  pictureTarget = { paragraph, docId: model.docId }; pictureInput.click();
+});
 button('표', '표 삽입', () => { void tableInsert().catch(error); });
 button('+행', '행 삽입', () => { const c = currentTable(); if (c) void perform([{ op: 'insertRow', tableId: c.table, at: c.row + 1 }]).catch(error); });
 button('−행', '행 삭제', () => { const c = currentTable(); if (c) void perform([{ op: 'deleteRow', tableId: c.table, row: c.row }]).catch(error); }); divider();

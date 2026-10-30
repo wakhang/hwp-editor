@@ -5,12 +5,12 @@ import { extname } from 'node:path';
 import { Header } from './header.js';
 import { buildSections } from './model.js';
 import { applyOp } from './ops.js';
-import { HwpxPackage, parseXml, serializeXml } from './package.js';
+import { HwpxPackage, parseXml, serializeXml, type PackageSnapshot } from './package.js';
 import { Registry } from './registry.js';
 import { OpError, type DocModel, type DocSession, type FindHit, type Op, type OpResult, type Paragraph } from './types.js';
 
 type Meta = { sourcePath: string | null; sourceFormat: 'hwpx' | 'hwp' | 'new'; path: string | null };
-type Snapshot = { xml: string[]; registry: string };
+type Snapshot = { xml: string[]; registry: string; pkg: PackageSnapshot };
 
 export class Session implements DocSession {
   readonly docId = randomUUID();
@@ -22,6 +22,7 @@ export class Session implements DocSession {
   private redoStack: Snapshot[] = [];
   private initial: string[];
   private saved: string[];
+  private savedManifest: Uint8Array;
   private path: string | null;
 
   constructor(private pkg: HwpxPackage, private meta: Meta) {
@@ -31,11 +32,13 @@ export class Session implements DocSession {
     this.path = meta.path;
     this.initial = this.xml();
     this.saved = this.initial.slice();
+    this.savedManifest = pkg.entries['Contents/content.hpf'];
     this.model();
   }
   private xml(): string[] { return [this.header.document, ...this.sections].map(serializeXml); }
-  private snapshot(): Snapshot { return { xml: this.xml(), registry: this.registry.snapshot() }; }
+  private snapshot(): Snapshot { return { xml: this.xml(), registry: this.registry.snapshot(), pkg: this.pkg.snapshot() }; }
   private restore(snapshot: Snapshot): void {
+    this.pkg.restore(snapshot.pkg);
     const docs = snapshot.xml.map(parseXml);
     this.header = new Header(docs[0]);
     this.sections = docs.slice(1);
@@ -44,7 +47,7 @@ export class Session implements DocSession {
   model(): DocModel {
     const xml = this.xml();
     return { docId: this.docId, path: this.path, sourcePath: this.meta.sourcePath, sourceFormat: this.meta.sourceFormat,
-      revision: this.revision, dirty: xml.some((s, i) => s !== this.saved[i]),
+      revision: this.revision, dirty: xml.some((s, i) => s !== this.saved[i]) || this.pkg.entries['Contents/content.hpf'] !== this.savedManifest,
       sections: buildSections(this.sections, this.header, this.registry), fonts: this.header.fonts, styles: this.header.namedStyles };
   }
   apply(ops: Op[]): OpResult {
@@ -53,7 +56,7 @@ export class Session implements DocSession {
     let index = 0;
     try {
       for (const op of ops) {
-        const applied = applyOp(op, { sections: this.sections, header: this.header, registry: this.registry });
+        const applied = applyOp(op, { sections: this.sections, header: this.header, registry: this.registry, pkg: this.pkg });
         if (applied.created) result.created.push(applied.created);
         result.replaced += applied.replaced ?? 0;
         this.model();
@@ -99,8 +102,13 @@ export class Session implements DocSession {
   outline(opts: { from?: string; limit?: number } = {}): string {
     const paragraphs = this.paragraphs();
     const from = opts.from ? paragraphs.findIndex(x => x.p.id === opts.from || x.tableId === opts.from) : 0;
-    return paragraphs.slice(Math.max(0, from), opts.limit === undefined ? undefined : Math.max(0, from) + opts.limit).map(({ p, tableId, cell }) =>
-      `[${tableId && cell ? `${tableId} r${cell.row}c${cell.col}/` : ''}${p.id}] ${p.runs.map(r => r.text).join('')}`).join('\n');
+    return paragraphs.slice(Math.max(0, from), opts.limit === undefined ? undefined : Math.max(0, from) + opts.limit).map(({ p, tableId, cell }) => {
+      const objects = p.anchors.filter(anchor => anchor.kind === 'object').map(anchor => {
+        const size = anchor.widthMm !== undefined && anchor.heightMm !== undefined ? ` ${Number(anchor.widthMm.toFixed(2))}×${Number(anchor.heightMm.toFixed(2))}mm` : '';
+        return ` [${anchor.id} ${anchor.label}${size}]`;
+      }).join('');
+      return `[${tableId && cell ? `${tableId} r${cell.row}c${cell.col}/` : ''}${p.id}] ${p.runs.map(r => r.text).join('')}${objects}`;
+    }).join('\n');
   }
   plainText(): string { return this.paragraphs().map(({ p }) => p.runs.map(r => r.text).join('')).join('\n'); }
   find(query: string, opts: { regex?: boolean; matchCase?: boolean } = {}): FindHit[] {
@@ -132,6 +140,7 @@ export class Session implements DocSession {
     catch (error) { await unlink(temp).catch(() => {}); throw error; }
     this.path = path;
     this.saved = xml;
+    this.savedManifest = this.pkg.entries['Contents/content.hpf'];
     return path;
   }
 }

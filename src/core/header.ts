@@ -1,6 +1,6 @@
 import { XMLSerializer } from '@xmldom/xmldom';
 import type { Document, Element } from '@xmldom/xmldom';
-import type { Align, CharStyle, StylePatch } from './types.js';
+import type { Align, BorderLine, CharStyle, StylePatch, TableCell } from './types.js';
 
 const HH = 'http://www.hancom.co.kr/hwpml/2011/head';
 
@@ -31,12 +31,31 @@ function alignment(value: string | null): Align {
   }
 }
 
+type BorderFill = Pick<TableCell, 'border' | 'background'>;
+
+function readBorderFill(el: Element): BorderFill {
+  function line(name: string): BorderLine | null {
+    const edge = first(el, name);
+    const type = edge?.getAttribute('type')?.toUpperCase();
+    if (!type || type === 'NONE') return null;
+    const width = Number.parseFloat(edge?.getAttribute('width') || '');
+    return { type, widthMm: Number.isFinite(width) ? width : 0, color: edge?.getAttribute('color') || '#000000' };
+  }
+  const brush = first(el, 'fillBrush');
+  const color = brush && first(brush, 'winBrush')?.getAttribute('faceColor');
+  return {
+    border: { top: line('topBorder'), right: line('rightBorder'), bottom: line('bottomBorder'), left: line('leftBorder') },
+    background: color && !['none', 'transparent'].includes(color.toLowerCase()) ? color : null,
+  };
+}
+
 export class Header {
   readonly styles = new Map<number, CharStyle>();
   readonly paraAlign = new Map<number, Align>();
   readonly styleNames = new Map<number, string>();
   readonly fonts: string[] = [];
   readonly namedStyles: { id: number; name: string }[] = [];
+  readonly borderFills = new Map<number, BorderFill>();
   private readonly fontIds = new Map<number, string>();
   private readonly charElements = new Map<number, Element>();
   private readonly paraElements = new Map<number, Element>();
@@ -57,6 +76,9 @@ export class Header {
       const id = Number(el.getAttribute('id'));
       this.paraElements.set(id, el);
       this.paraAlign.set(id, alignment(first(el, 'align')?.getAttribute('horizontal') ?? null));
+    }
+    for (const el of descendants(document, 'borderFill')) {
+      this.borderFills.set(Number(el.getAttribute('id')), readBorderFill(el));
     }
     for (const el of descendants(document, 'style')) {
       const id = Number(el.getAttribute('id'));
@@ -196,6 +218,7 @@ export class Header {
       node.setAttribute('type', 'SOLID'); node.setAttribute('width', '0.1 mm'); node.setAttribute('color', '#000000'); fill.appendChild(node);
     }
     container.appendChild(fill); container.setAttribute('itemCnt', String(fills.length + 1));
+    this.borderFills.set(id, readBorderFill(fill));
     return id;
   }
 }

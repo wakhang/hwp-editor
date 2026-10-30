@@ -1,6 +1,6 @@
 {
   "name": "hwp-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -35,25 +35,62 @@
   "build": {
     "appId": "io.github.wakhang.hwpeditor",
     "productName": "HwpEditor",
-    "directories": { "output": "out" },
-    "files": ["dist/electron/**", "dist/server/**", "dist/template/**", "dist/mcp.mjs*", "dist/hwped.mjs*", "ui/dist/**", "package.json"],
+    "directories": {
+      "output": "out"
+    },
+    "files": [
+      "dist/electron/**",
+      "dist/server/**",
+      "dist/template/**",
+      "dist/mcp.mjs*",
+      "dist/hwped.mjs*",
+      "ui/dist/**",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "LICENSE", "to": "LICENSE" },
-      { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" },
-      { "from": "licenses/Apache-2.0.txt", "to": "licenses/Apache-2.0.txt" },
-      { "from": "vendor/hwp2hwpx-cli.jar", "to": "vendor/hwp2hwpx-cli.jar" },
-      { "from": "vendor/jre", "to": "vendor/jre" }
+      {
+        "from": "LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "licenses/Apache-2.0.txt",
+        "to": "licenses/Apache-2.0.txt"
+      },
+      {
+        "from": "vendor/hwp2hwpx-cli.jar",
+        "to": "vendor/hwp2hwpx-cli.jar"
+      },
+      {
+        "from": "vendor/jre",
+        "to": "vendor/jre"
+      }
     ],
     "fileAssociations": [
-      { "ext": ["hwp", "hwpx"], "name": "HWP 문서", "role": "Editor" }
+      {
+        "ext": [
+          "hwp",
+          "hwpx"
+        ],
+        "name": "HWP 문서",
+        "role": "Editor"
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "extendInfo": { "CFBundleDisplayName": "HWP 편집기" },
+      "extendInfo": {
+        "CFBundleDisplayName": "HWP 편집기"
+      },
       "identity": "-",
       "hardenedRuntime": false,
       "signIgnore": "\\.jsa$",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     }
   }
 }

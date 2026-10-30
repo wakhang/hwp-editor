@@ -14,7 +14,7 @@ xattr -dr com.apple.quarantine "/Applications/HwpEditor.app"
 Node.js 22.12 이상(22.x), 24.x 또는 26 이상이 필요합니다. `.hwp` 변환에 필요한 Eclipse Temurin JDK 21은 설치 스크립트가 내려받습니다.
 ```bash
 npm install && npm --prefix ui install
-bash scripts/setup-java.sh   # JDK 21 + hwp2hwpx 변환기 → vendor/ (.hwp 열기에 필요)
+bash scripts/setup-java.sh   # JDK 21 + hwp2hwpx 변환기 + jlink 런타임(vendor/jre, 앱에 포함) → vendor/ (.hwp 열기에 필요)
 npm run build
 ```
 

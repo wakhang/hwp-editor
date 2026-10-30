@@ -17,7 +17,7 @@ function findRoot(): string {
   return dir;
 }
 const root = findRoot();
-const bundledJava = join(root, 'vendor/jdk/Contents/Home/bin/java');
+const bundledJava = join(root, 'vendor/jre/bin/java');
 
 async function paths(): Promise<{ java: string; jar: string }> {
   let java = process.env.HWPED_JAVA;

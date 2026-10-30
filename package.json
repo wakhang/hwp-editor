@@ -42,7 +42,7 @@
       { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" },
       { "from": "licenses/Apache-2.0.txt", "to": "licenses/Apache-2.0.txt" },
       { "from": "vendor/hwp2hwpx-cli.jar", "to": "vendor/hwp2hwpx-cli.jar" },
-      { "from": "vendor/jdk", "to": "vendor/jdk" }
+      { "from": "vendor/jre", "to": "vendor/jre" }
     ],
     "fileAssociations": [
       { "ext": ["hwp", "hwpx"], "name": "HWP 문서", "role": "Editor" }

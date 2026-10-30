@@ -97,7 +97,7 @@ if (!lock) {
   app.whenReady().then(async () => {
     if (app.isPackaged) {
       const vendor = join(process.resourcesPath, 'vendor');
-      const java = join(vendor, 'jdk', 'Contents', 'Home', 'bin', 'java');
+      const java = join(vendor, 'jre', 'bin', 'java');
       if (!process.env.HWPED_JAVA && existsSync(java)) process.env.HWPED_JAVA = java;
       process.env.HWPED_JAR ||= join(vendor, 'hwp2hwpx-cli.jar');
     }

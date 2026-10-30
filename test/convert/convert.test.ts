@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { converterAvailable, convertHwpToHwpx } from '../../src/convert/index.js';
 
 const root = resolve(import.meta.dirname, '../..');
+// Source-file launch needs jdk.compiler (full JDK); conversion itself uses the bundled jlink runtime.
 const java = join(root, 'vendor/jdk/Contents/Home/bin/java');
 const jar = join(root, 'vendor/hwp2hwpx-cli.jar');
 const files = readdirSync(join(root, 'fixtures/hwp')).filter(name => name.endsWith('.hwp'))

@@ -3,8 +3,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR="$ROOT/vendor"
 JDK="$VENDOR/jdk/Contents/Home"
+JRE="$VENDOR/jre"
 JAR="$VENDOR/hwp2hwpx-cli.jar"
+# Converter needs java.base + java.xml (jdeps); jdk.charsets for EUC-KR/MS949 in hwplib.
+JRE_MODULES="java.base,java.xml,jdk.charsets"
+build_jre() {
+  rm -rf "$JRE"
+  "$JDK/bin/jlink" --add-modules "$JRE_MODULES" --strip-debug --no-man-pages --no-header-files \
+    --compress=zip-9 --output "$JRE"
+}
 if [[ -x "$JDK/bin/java" && -f "$JAR" && "$JAR" -nt "$ROOT/java/Hwp2HwpxCli.java" ]]; then
+  [[ -x "$JRE/bin/java" ]] || build_jre
   exit 0
 fi
 mkdir -p "$VENDOR/lib" "$VENDOR/src"
@@ -43,3 +52,4 @@ done
 rm -f "$WORK/classes/META-INF/MANIFEST.MF" "$WORK/classes/META-INF/"*.SF "$WORK/classes/META-INF/"*.RSA "$WORK/classes/META-INF/"*.DSA
 "$JDK/bin/jar" --create --file "$WORK/hwp2hwpx-cli.jar" --main-class Hwp2HwpxCli -C "$WORK/classes" .
 mv "$WORK/hwp2hwpx-cli.jar" "$JAR"
+build_jre

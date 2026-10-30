@@ -19,7 +19,7 @@ src/cli/       hwped CLI
 ui/            ProseMirror 편집기 (Vite)
 electron/      셸 (서버 내장, 메뉴, 파일 대화상자)
 java/          Hwp2HwpxCli.java + build.sh
-vendor/        (gitignore) jdk, jar
+vendor/        (gitignore) jdk(빌드용), jre(jlink 런타임, 앱 번들), jar
 fixtures/      hwpx/, hwp/ 공개 샘플, private/ (gitignore, 사용자 실제 문서)
 ```
 
@@ -30,7 +30,7 @@ export function openDocument(path: string): Promise<DocSession>;      // .hwpx �
 export function openHwpxBytes(bytes: Uint8Array, meta: { sourcePath: string | null; sourceFormat: 'hwpx'|'hwp'|'new'; path: string | null }): DocSession;
 export function newDocument(): DocSession;                            // src/core/template/blank.hwpx 기반, path=null
 ```
-`src/convert/index.ts`: `export function convertHwpToHwpx(hwpPath: string): Promise<Uint8Array>` — java 경로 우선순위 `HWPED_JAVA` env → `<repo>/vendor/jdk/.../bin/java` → `java`; jar는 `HWPED_JAR` env → `<repo>/vendor/hwp2hwpx-cli.jar`. 실패 시 stderr를 담은 Error.
+`src/convert/index.ts`: `export function convertHwpToHwpx(hwpPath: string): Promise<Uint8Array>` — java 경로 우선순위 `HWPED_JAVA` env → `<repo>/vendor/jre/bin/java`(jlink: java.base·java.xml·jdk.charsets) → `java`; jar는 `HWPED_JAR` env → `<repo>/vendor/hwp2hwpx-cli.jar`. 실패 시 stderr를 담은 Error.
 
 ## id 규칙
 세션 안에서만 유효. 문서를 열 때 순서대로 `s0..`(구역), `p1..`(문단, 표 셀 안 포함), `t1..`(표), `c1..`(셀), `o1..`(기타 개체)를 매긴다. op로 새로 생긴 것은 이어서 증가. undo/redo 뒤에도 남아 있는 요소의 id는 바뀌지 않는다.

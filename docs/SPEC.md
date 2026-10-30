@@ -36,7 +36,7 @@ export function newDocument(): DocSession;                            // src/cor
 세션 안에서만 유효. 문서를 열 때 순서대로 `s0..`(구역), `p1..`(문단, 표 셀 안 포함), `t1..`(표), `c1..`(셀), `o1..`(기타 개체)를 매긴다. op로 새로 생긴 것은 이어서 증가. undo/redo 뒤에도 남아 있는 요소의 id는 바뀌지 않는다.
 
 ## HTTP API (서버, 기본 포트 47321, 127.0.0.1만)
-모든 요청 헤더 `Authorization: Bearer <token>`. 시작 시 `~/.hwp-editor/server.json`(0600)에 `{port, pid, token}` 기록, 종료 시 삭제. UI 페이지는 토큰을 `/?token=` 쿼리로 받는다.
+모든 요청 헤더 `Authorization: Bearer <token>`(예외: `<img>`가 쓰는 `GET /api/docs/:id/bin/:binId`와 WS는 `?token=` 쿼리). 시작 시 `~/.hwp-editor/server.json`(0600)에 `{port, pid, token}` 기록, 종료 시 삭제. UI 페이지는 토큰을 `/?token=` 쿼리로 받는다.
 | 메서드 경로 | 본문 → 응답 |
 |---|---|
 | GET `/api/docs` | → `{docs: {docId, path, sourcePath, dirty, revision}[]}` |

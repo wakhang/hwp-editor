@@ -5,17 +5,44 @@
   "type": "module",
   "main": "dist/electron/main.cjs",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "mcp": "node dist/mcp.mjs",
+    "cli": "node dist/hwped.mjs",
+    "app:pack": "npm run build && electron-builder --mac dir --arm64",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@xmldom/xmldom": "^0.9.12",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  },
+  "build": {
+    "appId": "local.hwpeditor",
+    "productName": "HWP 편집기",
+    "files": ["dist/**", "ui/dist/**", "package.json"],
+    "extraResources": [
+      { "from": "vendor/hwp2hwpx-cli.jar", "to": "vendor/hwp2hwpx-cli.jar" },
+      { "from": "vendor/jdk", "to": "vendor/jdk" }
+    ],
+    "fileAssociations": [
+      { "ext": ["hwp", "hwpx"], "name": "한글 문서", "role": "Editor" }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    }
   }
 }

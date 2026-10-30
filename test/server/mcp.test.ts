@@ -109,4 +109,41 @@ describe('MCP stdio integration', () => {
       }
     }
   }, 30_000);
+  it('discovers a server started after MCP and its replacement token', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'hwpx-mcp-discovery-'));
+    const previousHome = process.env.HOME;
+    let server: { url: string; token: string; close(): Promise<void> } | undefined;
+    let client: Client | undefined;
+    try {
+      process.env.HOME = dir;
+      const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
+      const transport = new StdioClientTransport({ ...serverCommand(), cwd: root, env: { ...env, HOME: dir }, stderr: 'pipe' });
+      client = new Client({ name: 'hwp-editor-test', version: '1.0.0' });
+      await client.connect(transport);
+      await call(client, 'hwp_new');
+
+      server = await startServer({ port: 0 });
+      expect((await call<{ docs: unknown[] }>(client, 'hwp_list')).docs).toHaveLength(0);
+      await call(client, 'hwp_new');
+      expect((await call<{ docs: unknown[] }>(client, 'hwp_list')).docs).toHaveLength(1);
+      const oldToken = server.token;
+      await server.close();
+      server = undefined;
+      server = await startServer({ port: 0 });
+      expect(server.token).not.toBe(oldToken);
+      expect((await call<{ docs: unknown[] }>(client, 'hwp_list')).docs).toHaveLength(0);
+      await call(client, 'hwp_new');
+      expect((await call<{ docs: unknown[] }>(client, 'hwp_list')).docs).toHaveLength(1);
+    } finally {
+      try {
+        await client?.close();
+      } finally {
+        try { await server?.close(); } finally {
+          if (previousHome === undefined) delete process.env.HOME;
+          else process.env.HOME = previousHome;
+          await rm(dir, { recursive: true, force: true });
+        }
+      }
+    }
+  }, 30_000);
 });

@@ -57,9 +57,18 @@ function installMenu(): void {
   ]));
 }
 
+function bringToFront(): void {
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  if (process.platform === 'darwin') app.focus({ steal: true });
+}
+
 async function createWindow(): Promise<void> {
   if (!server) return;
   window = new BrowserWindow({ width: 1200, height: 900, webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
+  bringToFront();
   ready = false;
   window.webContents.once('did-finish-load', () => {
     ready = true;
@@ -77,11 +86,12 @@ if (!lock) {
   app.on('open-file', (event, path) => {
     event.preventDefault();
     openPath(path);
-    if (!window && server) void createWindow();
+    if (window) bringToFront();
+    else if (server) void createWindow();
   });
   app.on('second-instance', (_event, args, cwd) => {
     for (const path of fileArguments(args.slice(1), cwd)) openPath(path);
-    if (window) { if (window.isMinimized()) window.restore(); window.focus(); }
+    if (window) bringToFront();
     else if (server) void createWindow();
   });
   app.whenReady().then(async () => {
@@ -92,11 +102,11 @@ if (!lock) {
       process.env.HWPED_JAR ||= join(vendor, 'hwp2hwpx-cli.jar');
     }
     ipcMain.handle('open-dialog', async () => {
-      const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: '한글 문서', extensions: ['hwp', 'hwpx'] }] });
+      const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'HWP 문서', extensions: ['hwp', 'hwpx'] }] });
       return result.canceled ? null : result.filePaths[0] ?? null;
     });
     ipcMain.handle('save-dialog', async (_event, defaultPath: string) => {
-      const result = await dialog.showSaveDialog({ defaultPath, filters: [{ name: '한글 문서', extensions: ['hwpx', 'hwp'] }] });
+      const result = await dialog.showSaveDialog({ defaultPath, filters: [{ name: 'HWP 문서', extensions: ['hwpx', 'hwp'] }] });
       return result.canceled ? null : result.filePath ?? null;
     });
     const serverModule = pathToFileURL(join(__dirname, '..', 'server', 'server.mjs')).href;

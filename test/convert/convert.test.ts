@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DOMParser } from '@xmldom/xmldom';
 import { strFromU8, unzipSync } from 'fflate';
@@ -11,7 +11,8 @@ const java = join(root, 'vendor/jdk/Contents/Home/bin/java');
 const jar = join(root, 'vendor/hwp2hwpx-cli.jar');
 const files = readdirSync(join(root, 'fixtures/hwp')).filter(name => name.endsWith('.hwp'))
   .map(name => join(root, 'fixtures/hwp', name));
-files.push(join(root, 'fixtures/private/contest.hwp'));
+const privateFixture = join(root, 'fixtures/private/contest.hwp');
+if (existsSync(privateFixture)) files.push(privateFixture);
 
 describe('HWP conversion', () => {
   it('reports availability', async () => {

@@ -48,19 +48,20 @@ async function discover(): Promise<Remote | null> {
   } catch { return null; }
 }
 async function main() {
-  const remote = await discover();
-  const manager = remote ? null : new SessionManager();
-  async function request(path: string, payload?: object): Promise<Record<string, unknown>> {
-    if (!remote) throw new Error('No running server');
-    const response = await fetch(`http://127.0.0.1:${remote.port}${path}`, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${remote.token}`, 'Content-Type': 'application/json' }, ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}) });
-    const value = z.record(z.string(), z.unknown()).parse(await response.json());
-    if (!response.ok) throw new Error(typeof value.error === 'string' ? value.error : `HTTP ${response.status}`);
-    return value;
-  }
+  let manager: SessionManager | undefined;
   const server = new Server({ name: 'hwp-editor', version: '0.1.0' }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
   server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
     try {
+      const remote = await discover();
+      if (!remote) manager ??= new SessionManager();
+      async function request(path: string, payload?: object): Promise<Record<string, unknown>> {
+        if (!remote) throw new Error('No running server');
+        const response = await fetch(`http://127.0.0.1:${remote.port}${path}`, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${remote.token}`, 'Content-Type': 'application/json' }, ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}) });
+        const value = z.record(z.string(), z.unknown()).parse(await response.json());
+        if (!response.ok) throw new Error(typeof value.error === 'string' ? value.error : `HTTP ${response.status}`);
+        return value;
+      }
       const args = params.arguments ?? {};
       const id = String(args.docId ?? '');
       const base = `/api/docs/${encodeURIComponent(id)}`;

@@ -1,6 +1,11 @@
-# HWP 편집기 (개인용)
+# HWP 편집기
 
 맥에서 `.hwp`/`.hwpx`를 열어 편집하고 `.hwpx`로 저장하는 편집기. 사람은 Electron 창에서, AI는 MCP·CLI로 같은 문서를 동시에 고친다(창에 바로 반영). 설계·계약: `docs/SPEC.md`.
+
+## 요구 사항
+- macOS arm64에서 테스트했습니다.
+- Node.js 22.12 이상(22.x), 24.x 또는 26 이상 (빌드·테스트 의존성 요구 사항).
+- `.hwp` 변환에 필요한 Eclipse Temurin JDK 21은 설치 스크립트가 내려받습니다.
 
 ## 설치
 ```bash
@@ -14,11 +19,29 @@ npm run build
 - CLI: `node dist/hwped.mjs outline|text|find|replace|apply|convert|open <file> …` (`--live`: 열려 있는 앱의 문서를 대상으로)
 - MCP(stdio): `node dist/mcp.mjs` — 도구 `hwp_list/open/new/outline/find/apply/undo/save/close`. 앱이 떠 있으면 앱 문서를, 아니면 자체 세션을 편집한다.
 
+## MCP 등록 예시
+MCP 클라이언트 설정에 빌드된 파일의 절대 경로를 지정합니다.
+```json
+{
+  "mcpServers": {
+    "hwp-editor": {
+      "command": "node",
+      "args": ["/path/to/dist/mcp.mjs"]
+    }
+  }
+}
+```
+
 ## 제약
 - `.hwp`는 열 때 HWPX로 변환하고 저장은 `.hwpx`(한글 2014 이상에서 열림). `.hwp` 쓰기 없음.
 - 화면은 연속 스크롤 HTML(쪽 너비·여백, 셀 테두리·배경·세로 정렬 반영). 쪽 나눔·개체 배치는 한글과 다를 수 있다.
 - 글자 겹치기 체크 상자(☑)는 보이고 문단을 다시 써도 보존된다. 그림은 `insertPicture`(UI '그림' 버튼, MCP·CLI `path`)로 넣을 수 있다. 도형·머리말 등은 보존만 한다.
-- 저장 파일은 mbc PC의 한글 2020으로 렌더해 확인한다(검증 저장소 `wakhang/hwp-editor-verify`, `docs/SPEC.md` "서식 채우기 지원").
+- 저장한 `.hwpx` 파일은 Hancom Office 한글 2014 이상에서 열 수 있다.
 
 ## 테스트
 `npm test` (core·convert·server·MCP) · `npm --prefix ui test`
+
+## 라이선스
+MIT. 제3자 라이선스와 상표 고지는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)를 참고하세요.
+
+본 제품은 한글과컴퓨터의 한/글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.

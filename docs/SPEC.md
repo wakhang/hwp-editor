@@ -61,6 +61,7 @@ export function newDocument(): DocSession;                            // src/cor
 
 ## MCP 도구 (`hwp_*`)
 `hwp_list`, `hwp_open {path}`, `hwp_new`, `hwp_outline {docId, from?, limit?}`, `hwp_find {docId, query, regex?}`, `hwp_apply {docId, ops}`, `hwp_undo {docId}`, `hwp_save {docId, path?}`, `hwp_close {docId}`. `hwp_apply` 설명에 Op 스키마 전체를 적는다. 응답은 짧게(revision, created, replaced, 바뀐 문단 outline).
+각 도구 호출마다 서버 정보 파일을 다시 읽고 인증된 상태 확인을 수행한다. 사용 가능한 앱 서버가 있으면 그 서버를 사용하고, 없으면 필요할 때 생성한 자체 SessionManager를 사용한다. 서버 전환 시 각 세션의 문서 ID는 공유되지 않는다.
 
 ## UI 동기화
 - 문단 = ProseMirror 블록(attrs: id, align, paraPrId, styleId). 텍스트 mark `cs`(attrs: CharStyle 전체). anchors는 문단 뒤 블록(표는 편집 가능한 표, 나머지는 회색 자리표시).

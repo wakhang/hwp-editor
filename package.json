@@ -2,6 +2,7 @@
   "name": "hwp-editor",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "dist/electron/main.cjs",
   "scripts": {
@@ -31,15 +32,18 @@
     "zod": "^4.6.7"
   },
   "build": {
-    "appId": "local.hwpeditor",
+    "appId": "io.github.wakhang.hwpeditor",
     "productName": "HWP 편집기",
     "files": ["dist/**", "ui/dist/**", "package.json"],
     "extraResources": [
+      { "from": "LICENSE", "to": "LICENSE" },
+      { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" },
+      { "from": "licenses/Apache-2.0.txt", "to": "licenses/Apache-2.0.txt" },
       { "from": "vendor/hwp2hwpx-cli.jar", "to": "vendor/hwp2hwpx-cli.jar" },
       { "from": "vendor/jdk", "to": "vendor/jdk" }
     ],
     "fileAssociations": [
-      { "ext": ["hwp", "hwpx"], "name": "한글 문서", "role": "Editor" }
+      { "ext": ["hwp", "hwpx"], "name": "HWP 문서", "role": "Editor" }
     ],
     "mac": {
       "category": "public.app-category.productivity"

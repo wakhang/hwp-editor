@@ -5,3 +5,5 @@ fixtures/private/
 out/
 *.log
 .DS_Store
+.omp/
+docs/HANDOFF.md

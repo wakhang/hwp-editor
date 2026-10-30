@@ -2,12 +2,16 @@
 
 맥에서 `.hwp`/`.hwpx`를 열어 편집하고 `.hwpx`로 저장하는 편집기. 사람은 Electron 창에서, AI는 MCP·CLI로 같은 문서를 동시에 고친다(창에 바로 반영). 설계·계약: `docs/SPEC.md`.
 
-## 요구 사항
-- macOS arm64에서 테스트했습니다.
-- Node.js 22.12 이상(22.x), 24.x 또는 26 이상 (빌드·테스트 의존성 요구 사항).
-- `.hwp` 변환에 필요한 Eclipse Temurin JDK 21은 설치 스크립트가 내려받습니다.
-
 ## 설치
+Apple Silicon(macOS arm64) 전용입니다. [Releases](https://github.com/wakhang/hwp-editor/releases/latest)에서 DMG를 내려받아 열고 `HwpEditor.app`을 응용 프로그램 폴더로 옮기세요. ZIP을 받아 압축을 풀어도 됩니다.
+
+앱은 ad-hoc 서명되었으며 Apple 공증을 받지 않았습니다. Gatekeeper가 실행을 차단하면 앱을 마우스 오른쪽 버튼으로 클릭해 **열기**를 선택하거나, 터미널에서 다음 명령을 실행한 뒤 여세요.
+```bash
+xattr -dr com.apple.quarantine "/Applications/HwpEditor.app"
+```
+
+## 소스에서 빌드
+Node.js 22.12 이상(22.x), 24.x 또는 26 이상이 필요합니다. `.hwp` 변환에 필요한 Eclipse Temurin JDK 21은 설치 스크립트가 내려받습니다.
 ```bash
 npm install && npm --prefix ui install
 bash scripts/setup-java.sh   # JDK 21 + hwp2hwpx 변환기 → vendor/ (.hwp 열기에 필요)

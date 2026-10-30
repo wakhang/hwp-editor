@@ -11,6 +11,7 @@
     "mcp": "node dist/mcp.mjs",
     "cli": "node dist/hwped.mjs",
     "app:pack": "npm run build && electron-builder --mac dir --arm64",
+    "app:release": "npm run build && electron-builder --mac --arm64 --publish never",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -33,8 +34,9 @@
   },
   "build": {
     "appId": "io.github.wakhang.hwpeditor",
-    "productName": "HWP 편집기",
-    "files": ["dist/**", "ui/dist/**", "package.json"],
+    "productName": "HwpEditor",
+    "directories": { "output": "out" },
+    "files": ["dist/electron/**", "dist/server/**", "dist/template/**", "dist/mcp.mjs*", "dist/hwped.mjs*", "ui/dist/**", "package.json"],
     "extraResources": [
       { "from": "LICENSE", "to": "LICENSE" },
       { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" },
@@ -46,7 +48,12 @@
       { "ext": ["hwp", "hwpx"], "name": "HWP 문서", "role": "Editor" }
     ],
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extendInfo": { "CFBundleDisplayName": "HWP 편집기" },
+      "identity": "-",
+      "hardenedRuntime": false,
+      "signIgnore": "\\.jsa$",
+      "target": ["dmg", "zip"]
     }
   }
 }
